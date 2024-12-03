@@ -80,7 +80,7 @@ def make_gymnasium_env(cfg):
 	elif cfg.task == "trifinger-mujoco-lift":
 		env = MoveCubeEnv(
 			task="lift",
-			start_viewer=True,
+			start_viewer=False,
 			# To avoid error about EGL context
 			create_camera_renderer=False,
 		)
