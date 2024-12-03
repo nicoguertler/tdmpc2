@@ -1,7 +1,13 @@
 from copy import deepcopy
 import warnings
 
-import gym
+# import gym
+import gymnasium
+from gymnasium.wrappers import FlattenObservation
+import numpy as np
+
+# import fetch_construction
+from trifinger_mujoco_env import MoveCubeEnv
 
 from envs.wrappers.multitask import MultitaskWrapper
 from envs.wrappers.pixels import PixelWrapper
@@ -31,6 +37,58 @@ except:
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
+# Wrapper for using gymnasium environments
+class GymWrapper(gymnasium.Wrapper):
+    def __init__(self, env, log_transform_rew=False, max_env_steps=None):
+        super().__init__(env)
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.log_transform_rew = log_transform_rew
+        if max_env_steps is None:
+            self.max_episode_steps = env.spec.max_episode_steps
+        else:
+            self.max_episode_steps = max_env_steps
+
+    def reset(self, **kwargs):
+        obs, _ = self.env.reset(**kwargs)
+        return obs
+
+    def render(self, mode='human', **kwargs):
+        return self.env.render()
+
+    def step(self, action):
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
+        if self.log_transform_rew:
+            reward = np.log(reward)
+        return observation, reward, done, info
+
+
+def make_gymnasium_env(cfg):
+	"""
+	Make a gymnasium environment for TD-MPC2 experiments.
+	"""
+	if cfg.task == "ant-maze-medium":
+		env = gymnasium.make("AntMaze_Medium_Diverse_GRDense-v4", terminate_when_unhealthy=False, render_mode='rgb_array')
+		env = FlattenObservation(env)
+		# in original environment, negative distance is put through an exponential function
+		env = GymWrapper(env, log_transform_rew=True)
+	elif cfg.task == "fetch":
+		env = gymnasium.make("FetchPickAndPlaceTable1Dense-v1", render_mode='rgb_array')
+		env = FlattenObservation(env)
+		env = GymWrapper(env)
+	elif cfg.task == "trifinger-mujoco-lift":
+		env = MoveCubeEnv(
+			task="lift",
+			start_viewer=True,
+			# To avoid error about EGL context
+			create_camera_renderer=False,
+		)
+		env = FlattenObservation(env)
+		env = GymWrapper(env, max_env_steps=env.unwrapped.episode_length)
+	return env
+
+
 def make_multitask_env(cfg):
 	"""
 	Make a multi-task environment for TD-MPC2 experiments.
@@ -56,17 +114,18 @@ def make_env(cfg):
 	"""
 	Make an environment for TD-MPC2 experiments.
 	"""
-	gym.logger.set_level(40)
+	# gym.logger.set_level(40)
 	if cfg.multitask:
 		env = make_multitask_env(cfg)
 
 	else:
 		env = None
-		for fn in [make_dm_control_env, make_maniskill_env, make_metaworld_env, make_myosuite_env]:
-			try:
-				env = fn(cfg)
-			except ValueError:
-				pass
+		# for fn in [make_gymnasium_env, make_dm_control_env, make_maniskill_env, make_metaworld_env, make_myosuite_env]:
+		# 	try:
+		# 		env = fn(cfg)
+		# 	except ValueError:
+		# 		pass
+		env = make_gymnasium_env(cfg)
 		if env is None:
 			raise ValueError(f'Failed to make environment "{cfg.task}": please verify that dependencies are installed and that the task exists.')
 		env = TensorWrapper(env)

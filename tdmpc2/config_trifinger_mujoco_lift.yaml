@@ -2,16 +2,16 @@ defaults:
     - override hydra/launcher: submitit_local
 
 # environment
-task: dog-run
+task: trifinger-mujoco-lift
 obs: state
 
 # evaluation
 checkpoint: ???
 eval_episodes: 10
-eval_freq: 50000
+eval_freq: 100000
 
 # training
-steps: 10_000_000
+steps: 40_000_000
 batch_size: 256
 reward_coef: 0.1
 value_coef: 0.1
